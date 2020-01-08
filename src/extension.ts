@@ -18,12 +18,14 @@ import { SonarLintExtendedLanguageClient } from './client';
 import { startedInDebugMode } from './util';
 import { resolveRequirements, RequirementsData } from './requirements';
 import { computeRuleDescPanelContent } from './rulepanel';
+import { GetJavaConfigRequest, JavaConfigResponse } from './sonarlint-protocol';
 
 declare let v8debug: object;
 const DEBUG = typeof v8debug === 'object' || startedInDebugMode(process);
 let oldConfig: VSCode.WorkspaceConfiguration;
 
 const DOCUMENT_SELECTOR = [
+  { scheme: 'file', language: 'java' },
   { scheme: 'file', language: 'javascript' },
   { scheme: 'file', language: 'javascriptreact' },
   { scheme: 'file', language: 'php' },
@@ -107,6 +109,7 @@ function languageServerCommand(
   const vmargs = getSonarLintConfiguration().get('ls.vmargs', '');
   parseVMargs(params, vmargs);
   params.push('-jar', serverJar, '' + port);
+  params.push(toUrl(Path.resolve(context.extensionPath, 'analyzers', 'sonarjava.jar')));
   params.push(toUrl(Path.resolve(context.extensionPath, 'analyzers', 'sonarjs.jar')));
   params.push(toUrl(Path.resolve(context.extensionPath, 'analyzers', 'sonarphp.jar')));
   params.push(toUrl(Path.resolve(context.extensionPath, 'analyzers', 'sonarpython.jar')));
@@ -115,7 +118,7 @@ function languageServerCommand(
   return { command: javaExecutablePath, args: params };
 }
 
-export function toUrl(filePath) {
+export function toUrl(filePath: string) {
   let pathName = Path.resolve(filePath).replace(/\\/g, '/');
 
   // Windows drive letter must be prefixed with a slash
@@ -229,6 +232,10 @@ export function activate(context: VSCode.ExtensionContext) {
     serverOptions,
     clientOptions
   );
+
+  languageClient.onReady().then(() => {
+    languageClient.onRequest(GetJavaConfigRequest.type, getJavaClasspath);
+  });
 
   const allRulesTreeDataProvider = new AllRulesTreeDataProvider(
     languageClient.onReady().then(() => languageClient.listAllRules())
@@ -389,4 +396,21 @@ export function deactivate(): Thenable<void> {
     return undefined;
   }
   return languageClient.stop();
+}
+
+async function getJavaClasspath(fileUri: string): Promise<JavaConfigResponse> {
+  const extension: VSCode.Extension<any> | undefined = VSCode.extensions.getExtension('redhat.java');
+  try {
+    const extensionApi: any = await extension!.activate();
+    if (extensionApi) {
+      return {
+        level: (await extensionApi.getProjectSettings(fileUri, ['org.eclipse.jdt.core.compiler.compliance']))['org.eclipse.jdt.core.compiler.compliance'],
+        classpath: (await extensionApi.getClasspaths(fileUri, { excludingTests: true }))['classpaths'],
+        testClasspath: (await extensionApi.getClasspaths(fileUri, { excludingTests: false }))['classpaths']
+      };
+    }
+  } catch (error) {
+    console.error(error);
+  }
+  return null;
 }

@@ -14,7 +14,7 @@ const jarDependencies = [
   {
     groupId: 'org/sonarsource/sonarlint/ls',
     artifactId: 'sonarlint-language-server',
-    version: '1.0.1.13655',
+    version: '1.1.0.14047',
     output: 'server/sonarlint-ls.jar'
   },
   {
@@ -22,6 +22,12 @@ const jarDependencies = [
     artifactId: 'sonar-javascript-plugin',
     version: '5.1.1.7506',
     output: 'analyzers/sonarjs.jar'
+  },
+  {
+    groupId: 'org/sonarsource/java',
+    artifactId: 'sonar-java-plugin',
+    version: '6.0.0.20538',
+    output: 'analyzers/sonarjava.jar'
   },
   {
     groupId: 'org/sonarsource/php',

@@ -26,6 +26,7 @@
   ],
   "qna": "https://community.sonarsource.com/c/help/sl",
   "activationEvents": [
+    "onLanguage:java",
     "onLanguage:javascript",
     "onLanguage:javascriptreact",
     "onLanguage:typescript",
