@@ -11,10 +11,15 @@
 import * as lsp from 'vscode-languageserver-protocol';
 
 export namespace GetJavaConfigRequest {
-    export const type = new lsp.RequestType<string, JavaConfigResponse, void, void>('sonarlint/getJavaConfig');
+    export const type = new lsp.RequestType<string, GetJavaConfigResponse, void, void>('sonarlint/getJavaConfig');
 }
 
-export interface JavaConfigResponse {
+export namespace IsJavaTestFileRequest {
+    export const type = new lsp.RequestType<string, boolean, void, void>('sonarlint/isJavaTestFile');
+}
+
+export interface GetJavaConfigResponse {
+    projectRoot: string,
     level: string
     classpath: string[]
     testClasspath: string[]

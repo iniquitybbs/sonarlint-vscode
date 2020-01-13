@@ -10,7 +10,7 @@ import * as Path from 'path';
 import * as FS from 'fs';
 import * as Net from 'net';
 import * as ChildProcess from 'child_process';
-import { LanguageClientOptions, StreamInfo, ExecuteCommandRequest, ExecuteCommandParams } from 'vscode-languageclient';
+import { LanguageClientOptions, StreamInfo, ExecuteCommandRequest, ExecuteCommandParams, Disposable } from 'vscode-languageclient';
 
 import { AllRulesTreeDataProvider, RuleDescription, RuleNode, ConfigLevel } from './rules';
 import { Commands } from './commands';
@@ -18,11 +18,12 @@ import { SonarLintExtendedLanguageClient } from './client';
 import { startedInDebugMode } from './util';
 import { resolveRequirements, RequirementsData } from './requirements';
 import { computeRuleDescPanelContent } from './rulepanel';
-import { GetJavaConfigRequest, JavaConfigResponse } from './sonarlint-protocol';
+import { GetJavaConfigRequest, GetJavaConfigResponse, IsJavaTestFileRequest } from './sonarlint-protocol';
 
 declare let v8debug: object;
 const DEBUG = typeof v8debug === 'object' || startedInDebugMode(process);
 let oldConfig: VSCode.WorkspaceConfiguration;
+let classpathChangeListener: Disposable;
 
 const DOCUMENT_SELECTOR = [
   { scheme: 'file', language: 'java' },
@@ -235,6 +236,7 @@ export function activate(context: VSCode.ExtensionContext) {
 
   languageClient.onReady().then(() => {
     languageClient.onRequest(GetJavaConfigRequest.type, getJavaClasspath);
+    languageClient.onRequest(IsJavaTestFileRequest.type, isJavaTestFile);
   });
 
   const allRulesTreeDataProvider = new AllRulesTreeDataProvider(
@@ -326,6 +328,30 @@ export function activate(context: VSCode.ExtensionContext) {
   languageClient.start();
 
   context.subscriptions.push(onConfigurationChange());
+
+  context.subscriptions.push(VSCode.extensions.onDidChange(() => {
+    installClasspathListener();
+  }));
+  installClasspathListener();
+}
+
+function installClasspathListener() {
+  const extension: VSCode.Extension<any> | undefined = VSCode.extensions.getExtension('redhat.java');
+  if (extension!.isActive) {
+    if (!classpathChangeListener) {
+      const extensionApi: any = extension.exports;
+      if (extensionApi) {
+        var onDidClasspathUpdate: VSCode.Event<VSCode.Uri> = extensionApi.onDidClasspathUpdate;
+        classpathChangeListener = onDidClasspathUpdate(function (uri) { languageClient.onReady().then(() => languageClient.didClasspathUpdate(uri.toString())); });
+      }
+    }
+  }
+  else {
+    if (classpathChangeListener) {
+      classpathChangeListener.dispose();
+      classpathChangeListener = null;
+    }
+  }
 }
 
 function onConfigurationChange() {
@@ -398,15 +424,20 @@ export function deactivate(): Thenable<void> {
   return languageClient.stop();
 }
 
-async function getJavaClasspath(fileUri: string): Promise<JavaConfigResponse> {
+async function getJavaClasspath(fileUri: string): Promise<GetJavaConfigResponse> {
   const extension: VSCode.Extension<any> | undefined = VSCode.extensions.getExtension('redhat.java');
   try {
     const extensionApi: any = await extension!.activate();
     if (extensionApi) {
+      installClasspathListener();
+      const compliance: string = (await extensionApi.getProjectSettings(fileUri, ['org.eclipse.jdt.core.compiler.compliance']))['org.eclipse.jdt.core.compiler.compliance'];
+      const classpathResult = (await extensionApi.getClasspaths(fileUri, { excludingTests: true }));
+      const testClasspathResult = (await extensionApi.getClasspaths(fileUri, { excludingTests: false }));
       return {
-        level: (await extensionApi.getProjectSettings(fileUri, ['org.eclipse.jdt.core.compiler.compliance']))['org.eclipse.jdt.core.compiler.compliance'],
-        classpath: (await extensionApi.getClasspaths(fileUri, { excludingTests: true }))['classpaths'],
-        testClasspath: (await extensionApi.getClasspaths(fileUri, { excludingTests: false }))['classpaths']
+        projectRoot: classpathResult['projectRoot'],
+        level: compliance,
+        classpath: classpathResult['classpaths'],
+        testClasspath: testClasspathResult['classpaths']
       };
     }
   } catch (error) {
@@ -414,3 +445,18 @@ async function getJavaClasspath(fileUri: string): Promise<JavaConfigResponse> {
   }
   return null;
 }
+
+async function isJavaTestFile(fileUri: string): Promise<boolean> {
+  const extension: VSCode.Extension<any> | undefined = VSCode.extensions.getExtension('redhat.java');
+  try {
+    const extensionApi: any = await extension!.activate();
+    if (extensionApi) {
+      installClasspathListener();
+      return (await extensionApi.isTestFile(fileUri));
+    }
+  } catch (error) {
+    console.error(error);
+  }
+  return null;
+}
+
