@@ -337,7 +337,7 @@ export function activate(context: VSCode.ExtensionContext) {
 
 function installClasspathListener() {
   const extension: VSCode.Extension<any> | undefined = VSCode.extensions.getExtension('redhat.java');
-  if (extension!.isActive) {
+  if (extension?.isActive) {
     if (!classpathChangeListener) {
       const extensionApi: any = extension.exports;
       if (extensionApi) {
@@ -427,7 +427,7 @@ export function deactivate(): Thenable<void> {
 async function getJavaClasspath(fileUri: string): Promise<GetJavaConfigResponse> {
   const extension: VSCode.Extension<any> | undefined = VSCode.extensions.getExtension('redhat.java');
   try {
-    const extensionApi: any = await extension!.activate();
+    const extensionApi: any = await extension?.activate();
     if (extensionApi) {
       installClasspathListener();
       const compliance: string = (await extensionApi.getProjectSettings(fileUri, ['org.eclipse.jdt.core.compiler.compliance']))['org.eclipse.jdt.core.compiler.compliance'];
@@ -449,7 +449,7 @@ async function getJavaClasspath(fileUri: string): Promise<GetJavaConfigResponse>
 async function isJavaTestFile(fileUri: string): Promise<boolean> {
   const extension: VSCode.Extension<any> | undefined = VSCode.extensions.getExtension('redhat.java');
   try {
-    const extensionApi: any = await extension!.activate();
+    const extensionApi: any = await extension?.activate();
     if (extensionApi) {
       installClasspathListener();
       return (await extensionApi.isTestFile(fileUri));
