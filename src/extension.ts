@@ -54,7 +54,7 @@ function appendToSonarLintOutput(message) {
 }
 
 function runJavaServer(context: VSCode.ExtensionContext): Thenable<StreamInfo> {
-  return resolveRequirements()
+  return resolveRequirements(context)
     .catch(error => {
       //show error
       VSCode.window.showErrorMessage(error.message, error.label).then(selection => {
@@ -296,6 +296,19 @@ export function activate(context: VSCode.ExtensionContext) {
           );
         });
     })
+  );
+
+  context.subscriptions.push(
+    VSCode.commands.registerCommand(
+      Commands.INSTALL_MANAGED_JRE,
+      () => {
+        VSCode.window.withProgress({ location: VSCode.ProgressLocation.Notification, title: 'Installing JRE' },
+          (progress, token) => {
+            return Promise.resolve('TODO');
+          }
+        );
+      }
+    )
   );
 
   VSCode.workspace.onDidChangeConfiguration(async event => {
